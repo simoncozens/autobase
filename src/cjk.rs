@@ -117,23 +117,29 @@ pub fn add_cjk_tags(
         } else {
             3
         };
-        record.base_script.base_values = Some(BaseValues::new(default_index, vec![
-            BaseCoord::Format1(BaseCoordFormat1::new(icfb as i16)),
-            BaseCoord::Format1(BaseCoordFormat1::new(icft as i16)),
-            BaseCoord::Format1(BaseCoordFormat1::new(ideo)),
-            BaseCoord::Format1(BaseCoordFormat1::new(0i16)),
-        ]))
+        record.base_script.base_values = Some(BaseValues::new(
+            default_index,
+            vec![
+                BaseCoord::Format1(BaseCoordFormat1::new(icfb as i16)),
+                BaseCoord::Format1(BaseCoordFormat1::new(icft as i16)),
+                BaseCoord::Format1(BaseCoordFormat1::new(ideo)),
+                BaseCoord::Format1(BaseCoordFormat1::new(0i16)),
+            ],
+        ))
         .into();
         if let (Some(vert_icfb), Some(vert_icft)) = (vert_icfb, vert_icft) {
             vertical_script_records.push(BaseScriptRecord::new(
                 tag,
                 BaseScript::new(
-                    Some(BaseValues::new(default_index, vec![
-                        BaseCoord::Format1(BaseCoordFormat1::new(vert_icfb)),
-                        BaseCoord::Format1(BaseCoordFormat1::new(vert_icft)),
-                        BaseCoord::Format1(BaseCoordFormat1::new(0i16)),
-                        BaseCoord::Format1(BaseCoordFormat1::new(-ideo)),
-                    ])),
+                    Some(BaseValues::new(
+                        default_index,
+                        vec![
+                            BaseCoord::Format1(BaseCoordFormat1::new(vert_icfb)),
+                            BaseCoord::Format1(BaseCoordFormat1::new(vert_icft)),
+                            BaseCoord::Format1(BaseCoordFormat1::new(0i16)),
+                            BaseCoord::Format1(BaseCoordFormat1::new(-ideo)),
+                        ],
+                    )),
                     None,
                     vec![],
                 ),
