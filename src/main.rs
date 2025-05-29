@@ -9,8 +9,8 @@ use rayon::{iter::ParallelIterator, prelude::*};
 use skrifa::{FontRef, MetadataProvider};
 use std::{fs, path::PathBuf, process::ExitCode};
 use write_fonts::{
-    tables::base::{Axis, Base, BaseScriptList},
     FontBuilder,
+    tables::base::{Axis, Base, BaseScriptList},
 };
 
 use crate::{cjk::is_cjk_script, utils::supported_scripts};
