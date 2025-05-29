@@ -202,7 +202,7 @@ fn unicode_to_iso(script: &str) -> Option<&'static str> {
 }
 
 pub fn iso15924_to_opentype(script: &str) -> Option<Tag> {
-    let script = match script {
+    match script {
         "Deva" => Some(Tag::new(b"dev2")),
         "Beng" => Some(Tag::new(b"bng2")),
         "Gujr" => Some(Tag::new(b"guj2")),
@@ -211,8 +211,7 @@ pub fn iso15924_to_opentype(script: &str) -> Option<Tag> {
         "Taml" => Some(Tag::new(b"tam2")),
         "Telu" => Some(Tag::new(b"tel2")),
         _ => Tag::new_checked(script.to_lowercase().as_bytes()).ok(),
-    };
-    script
+    }
 }
 
 pub fn is_cjk_codepoint(c: char) -> bool {

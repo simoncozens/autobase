@@ -15,7 +15,7 @@ use crate::utils::{is_cjk_codepoint, iso15924_to_opentype};
 
 pub const CJK_SCRIPTS: [&str; 5] = ["Kana", "Hani", "Bopo", "Hira", "Hang"];
 pub fn is_cjk_script(s: &str) -> bool {
-    CJK_SCRIPTS.iter().any(|&cjk| cjk == s)
+    CJK_SCRIPTS.contains(&s)
 }
 
 fn find_lefts_rights(font: &skrifa::FontRef) -> (Option<i16>, Option<i16>) {
