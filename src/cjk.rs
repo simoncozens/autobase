@@ -1,17 +1,43 @@
 use std::{collections::HashSet, iter::once};
 
 use fontheight_core::Report;
-use skrifa::{raw::TableProvider, Tag};
+use skrifa::{
+    prelude::{LocationRef, Size},
+    raw::TableProvider,
+    MetadataProvider, Tag,
+};
 use write_fonts::tables::base::{
     Axis, BaseCoord, BaseCoordFormat1, BaseScript, BaseScriptList, BaseScriptRecord, BaseTagList,
     BaseValues,
 };
 
-use crate::utils::iso15924_to_opentype;
+use crate::utils::{is_cjk_codepoint, iso15924_to_opentype};
 
 pub const CJK_SCRIPTS: [&str; 5] = ["Kana", "Hani", "Bopo", "Hira", "Hang"];
 pub fn is_cjk_script(s: &str) -> bool {
     CJK_SCRIPTS.iter().any(|&cjk| cjk == s)
+}
+
+fn find_lefts_rights(font: &skrifa::FontRef) -> (Option<i16>, Option<i16>) {
+    let glyphmetrics = font.glyph_metrics(Size::unscaled(), LocationRef::default());
+    let cjk_glyphs = font
+        .charmap()
+        .mappings()
+        .filter(|(codepoint, _glyphid)| {
+            let c = char::from_u32(*codepoint);
+            c.is_some_and(is_cjk_codepoint)
+        })
+        .map(|(_codepoint, glyphid)| glyphid);
+    let cjk_bounds = cjk_glyphs.flat_map(|gid| glyphmetrics.bounds(gid));
+    let lefts = cjk_bounds.clone().map(|b| b.x_min).collect::<Vec<_>>();
+    let rights = cjk_bounds.map(|b| b.x_max).collect::<Vec<_>>();
+    if lefts.is_empty() || rights.is_empty() {
+        return (None, None);
+    }
+    (
+        Some((lefts.iter().copied().sum::<f32>() / lefts.len() as f32) as i16),
+        Some((rights.iter().copied().sum::<f32>() / rights.len() as f32) as i16),
+    )
 }
 
 pub fn add_cjk_tags(
@@ -43,14 +69,20 @@ pub fn add_cjk_tags(
         ideo = -ideo;
     }
 
-    // XXX
-    let vert_icfb = icfb;
-    let vert_icft = icft;
-
     println!(
         "Setting horizontal CJK baselines: icfb = {:.0}, icft = {:.0}, ideo = {:.0}",
         icfb, icft, ideo
     );
+
+    let (vert_icfb, vert_icft) = find_lefts_rights(font);
+    if let (Some(vert_icfb), Some(vert_icft)) = (vert_icfb, vert_icft) {
+        println!(
+            "Setting vertical CJK baselines: icfb = {}, icft = {}",
+            vert_icfb, vert_icft
+        );
+    } else {
+        println!("No vertical CJK baselines found");
+    }
 
     // Now we make baseline tags for all of these
     let tags = BaseTagList::new(vec![
@@ -95,30 +127,35 @@ pub fn add_cjk_tags(
             ],
         ))
         .into();
-        vertical_script_records.push(BaseScriptRecord::new(
-            tag,
-            BaseScript::new(
-                Some(BaseValues::new(
-                    default_index,
-                    vec![
-                        BaseCoord::Format1(BaseCoordFormat1::new(vert_icfb as i16)),
-                        BaseCoord::Format1(BaseCoordFormat1::new(vert_icft as i16)),
-                        BaseCoord::Format1(BaseCoordFormat1::new(0i16)),
-                        BaseCoord::Format1(BaseCoordFormat1::new(-ideo)),
-                    ],
-                )),
-                None,
-                vec![],
-            ),
-        ));
+        if let (Some(vert_icfb), Some(vert_icft)) = (vert_icfb, vert_icft) {
+            vertical_script_records.push(BaseScriptRecord::new(
+                tag,
+                BaseScript::new(
+                    Some(BaseValues::new(
+                        default_index,
+                        vec![
+                            BaseCoord::Format1(BaseCoordFormat1::new(vert_icfb)),
+                            BaseCoord::Format1(BaseCoordFormat1::new(vert_icft)),
+                            BaseCoord::Format1(BaseCoordFormat1::new(0i16)),
+                            BaseCoord::Format1(BaseCoordFormat1::new(-ideo)),
+                        ],
+                    )),
+                    None,
+                    vec![],
+                ),
+            ));
+        }
     }
     // Not yet implemented
 
-    // let vertical_axis = Some(Axis::new(
-    //     Some(tags.clone()),
-    //     BaseScriptList::new(vertical_script_records),
-    // ));
-    let vertical_axis = None;
+    let vertical_axis = if vertical_script_records.is_empty() {
+        None
+    } else {
+        Some(Axis::new(
+            Some(tags.clone()),
+            BaseScriptList::new(vertical_script_records),
+        ))
+    };
 
     Ok((Some(tags), vertical_axis))
 }

@@ -214,3 +214,17 @@ pub fn iso15924_to_opentype(script: &str) -> Option<Tag> {
     };
     script
 }
+
+pub fn is_cjk_codepoint(c: char) -> bool {
+    c.script().is_some_and(|s| {
+        matches!(
+            s,
+            ucd::Script::Han
+                | ucd::Script::Hiragana
+                | ucd::Script::Katakana
+                | ucd::Script::Bopomofo
+                | ucd::Script::Hangul
+                | ucd::Script::KatakanaOrHiragana
+        )
+    })
+}
