@@ -1,6 +1,6 @@
 use std::{collections::HashSet, iter::once};
 
-use fontheight_core::Report;
+use fontheight::Report;
 use skrifa::{
     MetadataProvider, Tag,
     prelude::{LocationRef, Size},

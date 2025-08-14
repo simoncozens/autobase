@@ -1,6 +1,6 @@
 //! This module determines base table BaseScriptRecords; that is,
 //! script-specific vertical metrics.
-use fontheight_core::Report;
+use fontheight::Report;
 use write_fonts::tables::base::{BaseCoord, BaseScript, BaseScriptRecord, MinMax};
 
 use crate::utils::iso15924_to_opentype;
