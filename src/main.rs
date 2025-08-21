@@ -4,9 +4,8 @@ mod utils;
 
 use anyhow::Context;
 use clap::Parser;
-use fontheight::{Location, Reporter};
+use fontheight::{Reporter};
 use rayon::{iter::ParallelIterator, prelude::*};
-use skrifa::{FontRef};
 use std::{fs, path::PathBuf, process::ExitCode};
 use write_fonts::{
     FontBuilder,
@@ -49,8 +48,8 @@ fn main() -> anyhow::Result<ExitCode> {
     let font_bytes = fs::read(&args.font_path).context("failed to read font file")?;
 
     let reporter = Reporter::new(&font_bytes)?;
-    let font = reporter.skrifa_fontref();
-    let default_location = Location::new();
+    let font = reporter.fontref();
+    let default_location_reporter = reporter.default_instance()?;
 
     let supported = supported_scripts(font);
     println!(
@@ -70,11 +69,9 @@ fn main() -> anyhow::Result<ExitCode> {
 
     let reports = wordlists
         .par_bridge()
-        .map(|word_list| -> anyhow::Result<_> {
-            let report = reporter
-                .par_check_location(&default_location, word_list, None, 1)?
-                .to_report(&default_location, word_list);
-            Ok(report)
+        .map(|word_list| {
+            default_location_reporter
+                .par_check(word_list, None, 1)
         })
         .collect::<Result<Vec<_>, _>>()?;
 
@@ -111,7 +108,7 @@ fn main() -> anyhow::Result<ExitCode> {
 
     let mut new_font = FontBuilder::new();
     new_font.add_table(&base)?;
-    new_font.copy_missing_tables(FontRef::new(&font_bytes).unwrap());
+    new_font.copy_missing_tables(font.clone());
     let binary = new_font.build();
     let output_path = args.output.unwrap_or(args.font_path);
     fs::write(&output_path, binary).context("failed to write font file")?;

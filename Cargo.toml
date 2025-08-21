@@ -1,17 +1,19 @@
 [package]
 name = "autobase"
 version = "0.1.0"
+license = "Apache-2.0"
 edition = "2024"
 
 [dependencies]
 ucd = "0.1.1"
-skrifa = "0.33.2"
-write-fonts = "0.39.1"
-fontheight = { version = "0.1.0", git = "https://github.com/googlefonts/fontheight", branch = "release-prep" }
+# Note: keep transitive read-fonts in sync for skrifa, write-fonts, and fontheight
+skrifa = "=0.35.0"
+write-fonts = "=0.41.0"
+fontheight = "=0.1.1"
 anyhow = "1"
 clap = { version = "4.5", features = ["derive"] }
 log = "0.4.25"
 rayon = "1.10"
-static-lang-word-lists = { version = "0.1.0", git = "https://github.com/googlefonts/fontheight", branch = "release-prep" }
+static-lang-word-lists = "0.1.0"
 clap-verbosity-flag = "3.0.3"
 env_logger = "0.11.8"
