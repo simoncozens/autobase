@@ -71,7 +71,7 @@ fn main() -> anyhow::Result<ExitCode> {
         .par_bridge()
         .map(|word_list| {
             default_location_reporter
-                .par_check(word_list, None, 1)
+                .par_check(word_list, Some(args.words_per_list), 1)
         })
         .collect::<Result<Vec<_>, _>>()?;
 
