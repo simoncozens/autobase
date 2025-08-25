@@ -376,9 +376,9 @@ dependencies = [
 
 [[package]]
 name = "fontheight"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cbdd8762f8b7e9c9a078b5c6c9c2667de88f7bd3c6f4ea90fdbe45834546625e"
+checksum = "6636afdb226897212798d0ff87a66ae6a8e072fa351c2214b01818e12da4aae0"
 dependencies = [
  "harfrust",
  "itertools",

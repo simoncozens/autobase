@@ -4,9 +4,9 @@ mod utils;
 
 use anyhow::Context;
 use clap::Parser;
-use fontheight::{Reporter};
+use fontheight::Reporter;
 use rayon::{iter::ParallelIterator, prelude::*};
-use std::{fs, path::PathBuf, process::ExitCode};
+use std::{fs, iter, path::PathBuf, process::ExitCode};
 use write_fonts::{
     FontBuilder,
     tables::base::{Axis, Base, BaseScriptList},
@@ -49,7 +49,12 @@ fn main() -> anyhow::Result<ExitCode> {
 
     let reporter = Reporter::new(&font_bytes)?;
     let font = reporter.fontref();
-    let default_location_reporter = reporter.default_instance()?;
+    let locations = reporter.interesting_locations();
+    let instances = locations
+        .par_iter()
+        .map(|location| reporter.instance(location))
+        .collect::<Result<Vec<_>, _>>()
+        .context("failed to initialise instances for testing")?;
 
     let supported = supported_scripts(font);
     println!(
@@ -68,11 +73,10 @@ fn main() -> anyhow::Result<ExitCode> {
         });
 
     let reports = wordlists
+        // Cartesian product relevant word lists with instances
+        .flat_map(|word_list| instances.iter().zip(iter::repeat(word_list)))
         .par_bridge()
-        .map(|word_list| {
-            default_location_reporter
-                .par_check(word_list, Some(args.words_per_list), 1)
-        })
+        .map(|(reporter, word_list)| reporter.par_check(word_list, Some(args.words_per_list), 1))
         .collect::<Result<Vec<_>, _>>()?;
 
     let mut base_script_records = if args.min_max {
