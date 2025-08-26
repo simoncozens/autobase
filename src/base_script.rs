@@ -49,8 +49,8 @@ pub fn base_script_records(reports: &[Report]) -> Vec<BaseScriptRecord> {
                 BaseScript::new(
                     None,
                     Some(MinMax::new(
-                        Some(BaseCoord::format_1(lowest.lowest() as i16)),
-                        Some(BaseCoord::format_1(highest.highest() as i16)),
+                        Some(BaseCoord::format_1(lowest.lowest().floor() as i16)),
+                        Some(BaseCoord::format_1(highest.highest().ceil() as i16)),
                         vec![],
                     )),
                     vec![],
