@@ -1,11 +1,7 @@
 //! This module determines base table BaseScriptRecords; that is,
 //! script-specific vertical metrics.
-<<<<<<< HEAD
-
-use fontheight::{Report, WordExtremes};
-use skrifa::Tag;
-use std::collections::BTreeMap;
-use std::collections::btree_map::Entry;
+use crate::config::Config;
+use fontheight::{Report, WordList};
 use write_fonts::tables::base::{BaseCoord, BaseScript, BaseScriptRecord, MinMax};
 
 use crate::utils::iso15924_to_opentype;
@@ -71,5 +67,4 @@ pub fn base_script_records(
     }
     records.sort_by_key(|r| r.base_script_tag);
     records
->>>>>>> 33801f3 (Add config file, sort reports by script)
 }

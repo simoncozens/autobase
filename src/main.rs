@@ -6,12 +6,9 @@ mod utils;
 pub(crate) use crate::config::Config;
 use anyhow::Context;
 use clap::Parser;
-use fontheight::Reporter;
+use fontheight::{Report, Reporter};
 use rayon::{iter::ParallelIterator, prelude::*};
-use std::{fs, iter, path::PathBuf, process::ExitCode};
-use rayon::{iter::ParallelIterator, prelude::*};
-use skrifa::{FontRef, MetadataProvider};
-use std::{collections::BTreeMap, fs, path::PathBuf, process::ExitCode};
+use std::{collections::BTreeMap, fs, iter, path::PathBuf, process::ExitCode};
 use write_fonts::{
     FontBuilder,
     tables::base::{Axis, Base, BaseScriptList},
