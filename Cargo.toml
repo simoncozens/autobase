@@ -4,6 +4,14 @@ version = "0.1.0"
 license = "Apache-2.0"
 edition = "2024"
 
+[[bin]]
+name = "autobase"
+path = "src/main.rs"
+
+[[bin]]
+name = "dump-base"
+path = "src/dump_base.rs"
+
 [dependencies]
 ucd = "0.1.1"
 # Note: keep transitive read-fonts in sync for skrifa, write-fonts, and fontheight
