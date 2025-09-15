@@ -42,7 +42,7 @@ fn find_lefts_rights(font: &skrifa::FontRef) -> (Option<i16>, Option<i16>) {
 
 pub fn add_cjk_tags(
     base_script_records: &mut Vec<BaseScriptRecord>,
-    reports: &[Report],
+    reports: &[&Report],
     font: &skrifa::FontRef,
     descender: Option<i16>,
     supported_scripts: &HashSet<&'static str>,
