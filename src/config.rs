@@ -57,7 +57,7 @@ impl<'de> Deserialize<'de> for ScriptLanguage {
 
 #[derive(Debug, Default, Deserialize)]
 pub struct Config {
-    pub r#override: HashMap<String, Override>,
+    pub r#override: HashMap<ScriptLanguage, Override>,
     pub languages: Vec<ScriptLanguage>,
 }
 

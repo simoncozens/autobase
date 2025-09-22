@@ -1,7 +1,7 @@
 //! This module determines base table BaseScriptRecords; that is,
 //! script-specific vertical metrics.
 use crate::{
-    config::Config,
+    config::{Config, ScriptLanguage},
     utils::{iso639_to_opentype, iso15924_to_opentype},
 };
 use fontheight::{Report, WordList};
@@ -110,11 +110,17 @@ impl std::fmt::Display for MinMax {
     }
 }
 
-fn wordlist_script_and_language(w: &WordList) -> String {
+fn wordlist_script_and_language(w: &WordList) -> ScriptLanguage {
     if let Some(lang) = w.language() {
-        format!("{}_{}", w.script().unwrap_or("Zzzz"), lang)
+        ScriptLanguage {
+            script: w.script().unwrap_or("Zzzz").to_string(),
+            language: Some(lang.to_string()),
+        }
     } else {
-        w.script().unwrap_or("Zzzz").to_string()
+        ScriptLanguage {
+            script: w.script().unwrap_or("Zzzz").to_string(),
+            language: None,
+        }
     }
 }
 pub fn base_script_records(
@@ -142,12 +148,23 @@ pub fn base_script_records(
     // (In the future, we might also automatically break out outliers.)
     let mut remaining_langs = vec![];
     let mut lang_specific_minmax: HashMap<String, MinMax> = HashMap::new();
-    let split_languages: Vec<&String> = config
+    let mut split_languages: Vec<&String> = config
         .languages
         .iter()
         .filter(|sl| sl.script == script)
         .flat_map(|sl| sl.language.as_ref())
         .collect::<Vec<_>>();
+    // Also split out anything manually overridden
+    split_languages.extend(
+        config
+            .r#override
+            .keys()
+            .filter(|sl| sl.script == script)
+            .flat_map(|sl| sl.language.as_ref()),
+    );
+    split_languages.sort();
+    split_languages.dedup();
+    log::debug!(" Splitting out languages: {:?}", split_languages);
     for report in reports.iter() {
         let Some(minmax) = MinMax::from_report(report.clone(), config) else {
             continue;
