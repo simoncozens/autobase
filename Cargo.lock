@@ -385,9 +385,9 @@ dependencies = [
 
 [[package]]
 name = "fontheight"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2afb7623161ad1004318d1ad3c0064502c9d4c56b9b58f414b28305e2d5e7782"
+checksum = "cde6210b8691e9a1df8c5fc2896b4f1f1ae8090bec991a3b986d23a92dc51c92"
 dependencies = [
  "harfrust",
  "itertools",
@@ -840,9 +840,9 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 
 [[package]]
 name = "static-lang-word-lists"
-version = "0.2.2"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc5d871f1347f9269ae7f9ad30aa3befe8fc373d731726f802318d4198400005"
+checksum = "b91aeea7cdc3bb2e32acbc357289517c954c03a030f60d43fc9eb8149902589e"
 dependencies = [
  "brotli",
  "brotli-decompressor",
