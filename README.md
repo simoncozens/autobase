@@ -26,7 +26,7 @@ in use.
 * `languages` is a list of script-language combinations to be split out of the main calculation and handled separately.
 * `overrides` is a dictionary of min and/or max values to be manually set for a particular script-language combination.
 
-In both cases, script-language combinations are specified as `Xxxx_yyy` where `Xxxx` is a valid [ISO 15924 four-letter script code](https://www.unicode.org/iso15924/iso15924-codes.html) and `yyy` is a valid [ISO639-1](https://en.wikipedia.org/wiki/List_of_ISO_639_language_codes) or [ISO639-3](https://iso639-3.sil.org/code_tables/639/data) language code.
+In both cases, script-language combinations are specified as `yyy_Xxxx` where `yyy` is a valid [ISO639-1](https://en.wikipedia.org/wiki/List_of_ISO_639_language_codes) or [ISO639-3](https://iso639-3.sil.org/code_tables/639/data) language code and `Xxxx` is a valid [ISO 15924 four-letter script code](https://www.unicode.org/iso15924/iso15924-codes.html).
 
 An example will make this clear. The following config file:
 
