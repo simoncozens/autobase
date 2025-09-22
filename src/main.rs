@@ -3,7 +3,6 @@ mod cjk;
 mod config;
 mod utils;
 
-pub(crate) use crate::config::Config;
 use anyhow::Context;
 use clap::Parser;
 use fontheight::{Report, Reporter};
@@ -69,12 +68,11 @@ fn main() -> anyhow::Result<ExitCode> {
         .context("failed to initialise instances for testing")?;
 
     let supported = supported_scripts(font);
-    println!(
+    log::info!(
         "Supported scripts: {}",
         supported.iter().cloned().collect::<Vec<_>>().join(", ")
     );
 
-    // XXX if we have a config here, use it to choose word lists
     let wordlists = static_lang_word_lists::LOOKUP_TABLE
         .values()
         .filter(|word_list| {
@@ -132,6 +130,11 @@ fn main() -> anyhow::Result<ExitCode> {
     } else {
         (None, None)
     };
+
+    if cjk_reports.is_empty() && !args.min_max {
+        println!("No CJK BASE table needed, -m was not given");
+        return Ok(ExitCode::SUCCESS);
+    }
 
     // generate the BASE table
     let base = Base::new(
