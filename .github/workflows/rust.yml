@@ -14,6 +14,7 @@ env:
   PROJECT_NAME: autobase
   CARGO_PUBLISH_ARGS: "-p autobase"
   CRATE_PATTERN: "autobase"
+  BINARIES: "autobase,dump-base"
 
 jobs:
   build:
@@ -146,7 +147,7 @@ jobs:
               7z a "$dirname.zip" "$dirname"
               echo "ASSET=$dirname.zip" >> $GITHUB_ENV
           else
-              mv "target/${{ matrix.os.target }}/release/${{env.PROJECT_NAME}}" "$dirname"
+              mv "target/${{ matrix.os.target }}/release/"{${{env.BINARIES}}} "$dirname"
               tar -czf "$dirname.tar.gz" "$dirname"
               echo "ASSET=$dirname.tar.gz" >> $GITHUB_ENV
           fi
