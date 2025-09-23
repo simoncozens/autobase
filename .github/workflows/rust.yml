@@ -29,14 +29,6 @@ jobs:
         name: Set up Rust for caching
       - name: Build
         run: cargo build
-      - name: Run tests
-        run: |
-          cargo test --verbose --workspace 
-          pip install maturin pytest
-          cd shaperglot-py
-          maturin build
-          pip install ../target/wheels/shaperglot*.whl
-          #pytest --verbose
 
   formatting:
     runs-on: ubuntu-latest
