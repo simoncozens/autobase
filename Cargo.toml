@@ -3,6 +3,8 @@ name = "autobase"
 version = "0.1.0"
 license = "Apache-2.0"
 edition = "2024"
+description = "Automatically generate BASE tables for OpenType fonts"
+repository = "https://github.com/simoncozens/autobase"
 
 [[bin]]
 name = "autobase"
