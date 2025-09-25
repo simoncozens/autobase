@@ -1,17 +1,11 @@
-mod base_script;
-mod cjk;
-mod config;
-mod utils;
+use autobase::{base::BaseTable, base_script, cjk, config, utils};
 
 use anyhow::Context;
 use clap::Parser;
 use fontheight::{Report, Reporter};
 use rayon::{iter::ParallelIterator, prelude::*};
 use std::{collections::BTreeMap, fs, iter, path::PathBuf, process::ExitCode};
-use write_fonts::{
-    FontBuilder,
-    tables::base::{Axis, Base, BaseScriptList},
-};
+use write_fonts::FontBuilder;
 
 use crate::{cjk::is_cjk_script, utils::supported_scripts};
 #[derive(Debug, Parser)]
@@ -36,18 +30,22 @@ struct Args {
     #[arg(short = 'k', long = "words", default_value_t = 1000)]
     words_per_list: usize,
 
+    /// Emit AFDKO feature code to stdout instead of modifying the font
+    #[arg(short = 'f', long = "fea")]
+    fea: bool,
+
     /// Configuration file
     #[arg(short = 'c', long = "config")]
     config: Option<PathBuf>,
 
     #[command(flatten)]
-    verbosity: clap_verbosity_flag::Verbosity,
+    verbosity: clap_verbosity::Verbosity<clap_verbosity::InfoLevel>,
 }
 
 fn main() -> anyhow::Result<ExitCode> {
     let args = Args::parse();
     env_logger::Builder::new()
-        .filter_level(args.verbosity.into())
+        .filter_level(args.verbosity.log_level_filter())
         .init();
 
     let config = if let Some(config_path) = args.config.as_deref() {
@@ -100,7 +98,7 @@ fn main() -> anyhow::Result<ExitCode> {
         }
     }
 
-    let mut base_script_records = if args.min_max {
+    let base_script_records = if args.min_max {
         reports_by_script
             .iter()
             .flat_map(|(script, reports)| {
@@ -119,38 +117,39 @@ fn main() -> anyhow::Result<ExitCode> {
                 .filter(|r| r.word_list.script().is_some_and(is_cjk_script))
         })
         .collect::<Vec<_>>();
-    let (base_tag_list, vertical_axis) = if !cjk_reports.is_empty() {
-        cjk::add_cjk_tags(
-            &mut base_script_records,
-            &cjk_reports,
-            font,
-            args.descender,
-            &supported,
-        )?
-    } else {
-        (None, None)
-    };
+    // let (base_tag_list, vertical_axis) = if !cjk_reports.is_empty() {
+    //     // cjk::add_cjk_tags(
+    //     //     &mut base_script_records,
+    //     //     &cjk_reports,
+    //     //     font,
+    //     //     args.descender,
+    //     //     &supported,
+    //     // )?
+    // } else {
+    //     (None, None)
+    // };
 
     if cjk_reports.is_empty() && !args.min_max {
-        println!("No CJK BASE table needed, -m was not given");
+        log::info!("No CJK BASE table needed, -m was not given");
         return Ok(ExitCode::SUCCESS);
     }
 
     // generate the BASE table
-    let base = Base::new(
-        Some(Axis::new(
-            base_tag_list,
-            BaseScriptList::new(base_script_records),
-        )),
-        vertical_axis,
+    let base = BaseTable::new(
+        base_script_records,
+        vec![], // No vertical today
     );
 
+    if args.fea {
+        println!("{}", base.to_fea());
+        return Ok(ExitCode::SUCCESS);
+    }
     let mut new_font = FontBuilder::new();
-    new_font.add_table(&base)?;
+    new_font.add_table(&base.to_skrifa()?)?;
     new_font.copy_missing_tables(font.clone());
     let binary = new_font.build();
     let output_path = args.output.unwrap_or(args.font_path);
     fs::write(&output_path, binary).context("failed to write font file")?;
-    println!("Wrote font to {:?}", output_path);
+    log::info!("Wrote font to {:?}", output_path);
     Ok(ExitCode::SUCCESS)
 }

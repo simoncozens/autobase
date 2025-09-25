@@ -38,13 +38,13 @@ impl<'de> Deserialize<'de> for ScriptLanguage {
             )));
         }
         let language = parts.next().map(|s| s.to_string());
-        if let Some(lang) = &language
-            && (lang.len() != 2 && lang.len() != 3)
-        {
-            return Err(serde::de::Error::custom(format!(
-                "language code must be 2 or 3 letters: {}",
-                lang
-            )));
+        if let Some(lang) = &language {
+            if lang.len() != 2 && lang.len() != 3 {
+                return Err(serde::de::Error::custom(format!(
+                    "language code must be 2 or 3 letters: {}",
+                    lang
+                )));
+            }
         }
         if parts.next().is_some() {
             return Err(serde::de::Error::custom(

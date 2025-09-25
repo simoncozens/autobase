@@ -1,20 +1,13 @@
 //! This module determines base table BaseScriptRecords; that is,
 //! script-specific vertical metrics.
+use crate::base::BaseScript;
+use crate::base::MinMax;
 use crate::{
     config::{Config, ScriptLanguage},
-    utils::{iso639_to_opentype, iso15924_to_opentype},
+    utils::{iso15924_to_opentype, iso639_to_opentype},
 };
 use fontheight::{Report, WordList};
-use std::collections::HashMap;
-use write_fonts::tables::base::{BaseCoord, BaseScript, BaseScriptRecord};
-
-#[derive(Clone, Debug)]
-struct MinMax {
-    highest: Option<i16>,
-    highest_word: String,
-    lowest: Option<i16>,
-    lowest_word: String,
-}
+use std::collections::{BTreeMap, HashMap};
 
 impl MinMax {
     fn from_report(r: Report, config: &Config) -> Option<Self> {
@@ -60,17 +53,17 @@ impl MinMax {
     }
 
     fn merge(&mut self, other: &MinMax) {
-        if let Some(other_high) = other.highest
-            && (self.highest.is_none() || self.highest.unwrap() < other_high)
-        {
-            self.highest = Some(other_high);
-            self.highest_word = other.highest_word.clone();
+        if let Some(other_high) = other.highest {
+            if self.highest.is_none() || self.highest.unwrap() < other_high {
+                self.highest = Some(other_high);
+                self.highest_word = other.highest_word.clone();
+            }
         }
-        if let Some(other_low) = other.lowest
-            && (self.lowest.is_none() || self.lowest.unwrap() > other_low)
-        {
-            self.lowest = Some(other_low);
-            self.lowest_word = other.lowest_word.clone();
+        if let Some(other_low) = other.lowest {
+            if self.lowest.is_none() || self.lowest.unwrap() > other_low {
+                self.lowest = Some(other_low);
+                self.lowest_word = other.lowest_word.clone();
+            }
         }
     }
 
@@ -83,30 +76,6 @@ impl MinMax {
             agg.merge(mm);
         }
         Some(agg)
-    }
-
-    fn to_base(&self) -> write_fonts::tables::base::MinMax {
-        write_fonts::tables::base::MinMax::new(
-            self.lowest.map(BaseCoord::format_1),
-            self.highest.map(BaseCoord::format_1),
-            vec![],
-        )
-    }
-}
-
-impl std::fmt::Display for MinMax {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "MinMax<")?;
-        if let Some(min) = &self.lowest {
-            write!(f, " min: {:?} (from {})", min, self.lowest_word)?;
-        }
-        if let Some(max) = &self.highest {
-            if self.lowest.is_some() {
-                write!(f, ",")?;
-            }
-            write!(f, " max: {:?} (from {})", max, self.highest_word)?;
-        }
-        write!(f, ">")
     }
 }
 
@@ -123,11 +92,7 @@ fn wordlist_script_and_language(w: &WordList) -> ScriptLanguage {
         }
     }
 }
-pub fn base_script_records(
-    script: &str,
-    reports: &[Report],
-    config: &Config,
-) -> Vec<BaseScriptRecord> {
+pub fn base_script_records(script: &str, reports: &[Report], config: &Config) -> Vec<BaseScript> {
     let mut records = vec![];
     let Some(ot_script) = iso15924_to_opentype(script) else {
         log::warn!("Script {} does not have an OpenType tag, skipping", script);
@@ -169,39 +134,37 @@ pub fn base_script_records(
         let Some(minmax) = MinMax::from_report(report.clone(), config) else {
             continue;
         };
-        if let Some(lang) = report.word_list.language()
-            && split_languages.contains(&&lang.to_string())
-        {
-            lang_specific_minmax
-                .entry(lang.to_string())
-                .and_modify(|existing| existing.merge(&minmax))
-                .or_insert(minmax);
+        if let Some(lang) = report.word_list.language() {
+            if split_languages.contains(&&lang.to_string()) {
+                lang_specific_minmax
+                    .entry(lang.to_string())
+                    .and_modify(|existing| existing.merge(&minmax))
+                    .or_insert(minmax);
+            } else {
+                remaining_langs.push(minmax);
+            }
         } else {
             remaining_langs.push(minmax);
         }
     }
 
-    let base_langsys_records = lang_specific_minmax
-        .iter()
+    let language_minmax = lang_specific_minmax
+        .into_iter()
         .map(|(lang, mm)| {
             log::info!(" Language {}: {:?}", lang, mm);
-            write_fonts::tables::base::BaseLangSysRecord::new(
-                iso639_to_opentype(lang),
-                mm.to_base(),
-            )
+            (iso639_to_opentype(&lang), mm)
         })
-        .collect::<Vec<_>>();
+        .collect::<BTreeMap<_, _>>();
 
     let script_minmax = MinMax::aggregate(&remaining_langs);
     log::info!(" Script {}: {:?}", script, script_minmax);
-    records.push(BaseScriptRecord::new(
-        ot_script,
-        BaseScript::new(
-            None,
-            script_minmax.map(|s| s.to_base()),
-            base_langsys_records,
-        ),
-    ));
-    records.sort_by_key(|r| r.base_script_tag);
+    records.push(BaseScript {
+        script: ot_script,
+        default_baseline: None,
+        baselines: BTreeMap::new(),
+        default_minmax: script_minmax,
+        languages: language_minmax,
+    });
+    records.sort_by_key(|r| r.script);
     records
 }

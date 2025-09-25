@@ -1,0 +1,19 @@
+[package]
+name = "autobase"
+version = "0.1.0"
+license = "Apache-2.0"
+edition = "2021"
+description = "Utilities for manipulating BASE tables for OpenType fonts"
+repository = "https://github.com/simoncozens/autobase"
+
+[dependencies]
+ucd = "0.1.1"
+skrifa = "=0.37.0"
+write-fonts = "=0.43.0"
+fontheight = "=0.1.7"
+anyhow = "1"
+log = "0.4.25"
+serde = "1.0.223"
+toml = "0.9.5"
+thiserror = "2.0.16"
+itertools = "0.14.0"
