@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use skrifa::{FontRef, MetadataProvider, Tag};
 use ucd::Codepoint;
 
+/// Return the set of scripts supported by the font, as ISO 15924 codes.
 pub fn supported_scripts(font: &FontRef) -> HashSet<&'static str> {
     let cmap = font.charmap();
     let mut strings = HashSet::new();

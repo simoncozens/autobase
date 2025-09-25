@@ -1,3 +1,7 @@
+//! Abstract the BASE table into a manageable structure.
+//!
+//! Handles both reading and writing binary BASE table data, and exporting to AFDKO feature syntax.
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use itertools::Itertools;
@@ -6,10 +10,9 @@ use write_fonts::tables::base as write_base;
 
 use crate::error::AutobaseError;
 
-/// Abstract the BASE table into a manageable structure.
-///
-/// Handles both reading and writing binary BASE table data, and exporting to AFDKO feature syntax.
-
+/// A MinMax represents the highest and lowest points of a set of glyphs, along with
+/// the word that produced each extreme. This is useful for debugging and for
+/// understanding why a particular BASE table was generated.
 #[derive(Clone, Debug)]
 pub struct MinMax {
     pub highest: Option<i16>,
@@ -19,6 +22,7 @@ pub struct MinMax {
 }
 
 impl MinMax {
+    /// Convert to a Skrifa MinMax representation for writing to a font.
     pub fn to_skrifa(&self) -> write_base::MinMax {
         write_base::MinMax::new(
             self.lowest.map(write_base::BaseCoord::format_1),
@@ -27,6 +31,7 @@ impl MinMax {
         )
     }
 
+    /// Create a MinMax from a Skrifa MinMax representation read from a font.
     fn from_skrifa(mm: &skrifa::raw::tables::base::MinMax) -> Result<Self, AutobaseError> {
         Ok(Self {
             highest: mm.max_coord().transpose()?.map(|c| c.coordinate()),
@@ -53,16 +58,39 @@ impl std::fmt::Display for MinMax {
     }
 }
 
+/// A BaseScript represents the BASE table data for a particular script, including
+/// its default baseline, any other baselines, and MinMax data for the script as a
+/// whole and for any languages within the script.
 #[derive(Clone, Debug)]
 pub struct BaseScript {
+    /// The script tag, e.g. 'hani'
+    ///
+    /// Note that this is an OpenType script tag, not a ISO 15924 code.
     pub script: Tag,
+    /// The default baseline tag, e.g. 'romn'
     pub default_baseline: Option<Tag>,
+    /// A map of baseline tags to their y-coordinates
     pub baselines: BTreeMap<Tag, i16>,
+    /// The default MinMax for the script
     pub default_minmax: Option<MinMax>,
+    /// A map of language tags to their MinMax values
+    ///
+    /// The language tag is a 4-character OpenType language tag.
     pub languages: BTreeMap<Tag, MinMax>,
 }
 
 impl BaseScript {
+    pub fn new(script: Tag) -> Self {
+        Self {
+            script,
+            default_baseline: None,
+            baselines: BTreeMap::new(),
+            default_minmax: None,
+            languages: BTreeMap::new(),
+        }
+    }
+
+    /// Convert to a Skrifa BaseScriptRecord representation for writing to a font.
     pub fn to_skrifa(
         &self,
         baseline_tags: &[Tag],
@@ -106,13 +134,17 @@ impl BaseScript {
     }
 }
 
+/// A BaseTable represents the entire BASE table, with horizontal and vertical axes.
 #[derive(Clone, Debug, Default)]
 pub struct BaseTable {
+    /// The horizontal axis BaseScript records
     pub horizontal: Vec<BaseScript>,
+    /// The vertical axis BaseScript records
     pub vertical: Vec<BaseScript>,
 }
 
 impl BaseTable {
+    /// Convert to a Skrifa Base representation for writing to a font.
     pub fn to_skrifa(&self) -> Result<write_base::Base, AutobaseError> {
         let mut baseline_tags: BTreeMap<Tag, ()> = BTreeMap::new();
         for script in self.horizontal.iter().chain(self.vertical.iter()) {
@@ -155,6 +187,7 @@ impl BaseTable {
         Ok(write_base::Base::new(horizontal_axis, vertical_axis))
     }
 
+    /// Export the BASE table to AFDKO feature syntax.
     pub fn to_fea(&self) -> String {
         let mut fea = "table BASE {\n".to_string();
         for (axis, scripts) in [
@@ -284,6 +317,7 @@ impl BaseTable {
         Ok(base_scripts)
     }
 
+    /// Create a BaseTable from a Skrifa Base representation read from a font.
     pub fn from_skrifa(base: &skrifa::raw::tables::base::Base) -> Result<Self, AutobaseError> {
         Ok(Self {
             horizontal: base
@@ -297,6 +331,7 @@ impl BaseTable {
         })
     }
 
+    /// Create a new BASE table
     pub fn new(horizontal: Vec<BaseScript>, vertical: Vec<BaseScript>) -> Self {
         Self {
             horizontal,
