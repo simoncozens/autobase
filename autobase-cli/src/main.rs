@@ -1,13 +1,19 @@
-use autobase::{base::BaseTable, base_script, cjk, config, utils};
+use autobase::{
+    base::BaseTable,
+    base_script,
+    cjk::{self, compute_bounds},
+    config, utils,
+};
 
 use anyhow::Context;
 use clap::Parser;
 use fontheight::{Report, Reporter};
 use rayon::{iter::ParallelIterator, prelude::*};
+use skrifa::raw::TableProvider;
 use std::{collections::BTreeMap, fs, iter, path::PathBuf, process::ExitCode};
 use write_fonts::FontBuilder;
 
-use crate::{cjk::is_cjk_script, utils::supported_scripts};
+use crate::utils::supported_scripts;
 #[derive(Debug, Parser)]
 #[command(version, about)]
 struct Args {
@@ -17,10 +23,6 @@ struct Args {
 
     /// The TTF to analyze
     font_path: PathBuf,
-
-    /// The em-box bottom edge value to use for CJK tags; if not specified, the font's OS/2 table will be used
-    #[arg(short = 'd', long = "descender")]
-    descender: Option<i16>,
 
     /// Add min-max records for experimental Android multiscript vertical metrics
     #[arg(short = 'm', long = "min-max")]
@@ -108,37 +110,24 @@ fn main() -> anyhow::Result<ExitCode> {
     } else {
         vec![]
     };
-    // Add CJK tags
-    let cjk_reports = reports_by_script
-        .values()
-        .flat_map(|reports| {
-            reports
-                .iter()
-                .filter(|r| r.word_list.script().is_some_and(is_cjk_script))
-        })
-        .collect::<Vec<_>>();
-    // let (base_tag_list, vertical_axis) = if !cjk_reports.is_empty() {
-    //     // cjk::add_cjk_tags(
-    //     //     &mut base_script_records,
-    //     //     &cjk_reports,
-    //     //     font,
-    //     //     args.descender,
-    //     //     &supported,
-    //     // )?
-    // } else {
-    //     (None, None)
-    // };
-
-    if cjk_reports.is_empty() && !args.min_max {
-        log::info!("No CJK BASE table needed, -m was not given");
-        return Ok(ExitCode::SUCCESS);
-    }
 
     // generate the BASE table
-    let base = BaseTable::new(
+    let mut base = BaseTable::new(
         base_script_records,
         vec![], // No vertical today
     );
+
+    let needs_cjk = supported.iter().any(|s| cjk::is_cjk_script(s));
+    if needs_cjk {
+        log::info!("CJK scripts detected, adding CJK BASE records");
+        let cjk_bounds = compute_bounds(font)?;
+        let upem = font.head()?.units_per_em() as f32;
+        cjk_bounds.insert_into_base(upem, &supported, &mut base);
+    }
+    if !needs_cjk && !args.min_max {
+        log::info!("No CJK BASE table needed, -m was not given");
+        return Ok(ExitCode::SUCCESS);
+    }
 
     if args.fea {
         println!("{}", base.to_fea());

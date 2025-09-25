@@ -1,161 +1,211 @@
-use std::{collections::HashSet, iter::once};
+use std::collections::HashSet;
 
-use fontheight::Report;
+use crate::{
+    base::{BaseScript, BaseTable},
+    error::AutobaseError,
+    utils::iso15924_to_opentype,
+};
 use skrifa::{
+    metrics::BoundingBox,
     prelude::{LocationRef, Size},
     raw::TableProvider,
-    MetadataProvider, Tag,
-};
-use write_fonts::tables::base::{
-    Axis, BaseCoord, BaseCoordFormat1, BaseScript, BaseScriptList, BaseScriptRecord, BaseTagList,
-    BaseValues,
+    GlyphId, MetadataProvider, Tag,
 };
 
-use crate::utils::{is_cjk_codepoint, iso15924_to_opentype};
-
-pub const CJK_SCRIPTS: [&str; 5] = ["Kana", "Hani", "Bopo", "Hira", "Hang"];
+// To let the function work with both ISO and OpenType script tags, we include both
+pub const CJK_SCRIPTS: [&str; 10] = [
+    "Kana", "Hani", "Bopo", "Hira", "Hang", "kana", "hani", "bopo", "hira", "hang",
+];
 pub fn is_cjk_script(s: &str) -> bool {
     CJK_SCRIPTS.contains(&s)
 }
 
-// fn find_lefts_rights(font: &skrifa::FontRef) -> (Option<i16>, Option<i16>) {
-//     let glyphmetrics = font.glyph_metrics(Size::unscaled(), LocationRef::default());
-//     let cjk_glyphs = font
-//         .charmap()
-//         .mappings()
-//         .filter(|(codepoint, _glyphid)| {
-//             let c = char::from_u32(*codepoint);
-//             c.is_some_and(is_cjk_codepoint)
-//         })
-//         .map(|(_codepoint, glyphid)| glyphid);
-//     let cjk_bounds = cjk_glyphs.flat_map(|gid| glyphmetrics.bounds(gid));
-//     let lefts = cjk_bounds.clone().map(|b| b.x_min).collect::<Vec<_>>();
-//     let rights = cjk_bounds.map(|b| b.x_max).collect::<Vec<_>>();
-//     if lefts.is_empty() || rights.is_empty() {
-//         return (None, None);
-//     }
-//     (
-//         Some((lefts.iter().copied().sum::<f32>() / lefts.len() as f32) as i16),
-//         Some((rights.iter().copied().sum::<f32>() / rights.len() as f32) as i16),
-//     )
-// }
+/// CJK vertical metrics, as per the Google Fonts vertical metrics specification.
+///
+/// See https://googlefonts.github.io/gf-guide/metrics.html#cjk-vertical-metrics for how these are determined.
+#[derive(Debug, Clone)]
+pub struct CjkMetrics {
+    /// Ideographic character face bottom edge
+    h_icfb: Option<f32>,
+    /// Ideographic character face top edge
+    h_icft: Option<f32>,
+    /// Ideographic em-box bottom edge
+    h_ideo: Option<f32>,
+    /// Ideographic em-box top edge
+    h_idtp: Option<f32>,
+    /// Roman baseline
+    h_romn: Option<f32>,
 
-// pub fn add_cjk_tags(
-//     base_script_records: &mut Vec<crate::base::BaseScript>,
-//     reports: &[&Report],
-//     font: &skrifa::FontRef,
-//     descender: Option<i16>,
-//     supported_scripts: &HashSet<&'static str>,
-// ) -> anyhow::Result<()> {
-//     // We need to determine:
-//     // icfb: Ideographic character face bottom edge - (average deepest)
-//     let lowests = reports
-//         .iter()
-//         .flat_map(|x| x.exemplars.lowest().first())
-//         .map(|x| x.extremes.lowest() as f32)
-//         .collect::<Vec<_>>();
-//     let icfb = lowests.iter().copied().sum::<f32>() / lowests.len() as f32;
-//     // icft: Ideographic character face top edge - (average highest)
-//     let heighests = reports
-//         .iter()
-//         .flat_map(|x| x.exemplars.highest().first())
-//         .map(|x| x.extremes.highest() as f32)
-//         .collect::<Vec<_>>();
-//     let icft = heighests.iter().copied().sum::<f32>() / heighests.len() as f32;
-//     // ideo: ideographic em-box bottom edge - (font descender)
-//     let os2 = font.os2()?;
-//     let mut ideo = descender.unwrap_or_else(|| os2.s_typo_descender());
-//     if ideo > 0 {
-//         ideo = -ideo;
-//     }
+    /// Ideographic character face left edge
+    v_icfb: Option<f32>,
+    /// Ideographic character face right edge
+    v_icft: Option<f32>,
+    /// Ideographic em-box left edge
+    v_ideo: Option<f32>,
+    /// Ideographic em-box right edge (advance width)
+    v_idtp: Option<f32>,
+    /// Vertical roman baseline
+    v_romn: Option<f32>,
+}
 
-//     println!(
-//         "Setting horizontal CJK baselines: icfb = {:.0}, icft = {:.0}, ideo = {:.0}",
-//         icfb, icft, ideo
-//     );
+impl CjkMetrics {
+    fn from_bounds(bounds: &[BoundingBox], upem: f32, average_width: f32) -> Self {
+        let bbox_y_average = bounds
+            .iter()
+            .map(|b| (b.y_max + b.y_min) / 2.0)
+            .sum::<f32>()
+            / bounds.len() as f32;
+        let h_idtp = bbox_y_average + upem / 2.0;
+        let h_ideo = bbox_y_average - upem / 2.0;
+        let average_top = bounds.iter().map(|b| b.y_max).sum::<f32>() / bounds.len() as f32;
+        let average_bottom = bounds.iter().map(|b| b.y_min).sum::<f32>() / bounds.len() as f32;
+        let average_left = bounds.iter().map(|b| b.x_min).sum::<f32>() / bounds.len() as f32;
+        let average_right = bounds.iter().map(|b| b.x_max).sum::<f32>() / bounds.len() as f32;
 
-//     let (vert_icfb, vert_icft) = find_lefts_rights(font);
-//     if let (Some(vert_icfb), Some(vert_icft)) = (vert_icfb, vert_icft) {
-//         println!(
-//             "Setting vertical CJK baselines: icfb = {}, icft = {}",
-//             vert_icfb, vert_icft
-//         );
-//     } else {
-//         println!("No vertical CJK baselines found");
-//     }
+        CjkMetrics {
+            h_icfb: Some(average_bottom),
+            h_icft: Some(average_top),
+            h_ideo: Some(h_ideo),
+            h_idtp: Some(h_idtp),
+            h_romn: Some(0.0),
+            v_icfb: Some(average_left),
+            v_icft: Some(average_right),
+            v_ideo: Some(0.0),
+            v_idtp: Some(average_width),
+            v_romn: Some(-h_ideo),
+        }
+    }
 
-//     // Now we make baseline tags for all of these
-//     let tags = BaseTagList::new(vec![
-//         Tag::new(b"icfb"),
-//         Tag::new(b"icft"),
-//         Tag::new(b"ideo"),
-//         Tag::new(b"romn"),
-//     ]);
-//     // And a vertical axis
-//     let mut vertical_script_records = vec![];
+    pub fn insert_into_base(
+        &self,
+        upem: f32,
+        supported_scripts: &HashSet<&str>,
+        base: &mut BaseTable,
+    ) {
+        let average_width = self.v_idtp.unwrap();
+        let font_is_square = (average_width - upem).abs() / upem < 0.01;
+        // get all the supported scripts; if they're not already in the base table, add them
+        // for each script, the default baseline should be ideo if it's a CJK script, romn otherwise
+        // we want to add the following baseline: icfb, icft, ideo, romn; idtp only if the font is not square
 
-//     for script in once("DFLT").chain(supported_scripts.iter().cloned()) {
-//         let tag = if script == "DFLT" {
-//             Tag::new(b"DFLT")
-//         } else {
-//             iso15924_to_opentype(script)
-//                 .ok_or_else(|| anyhow::anyhow!("No OpenType tag for script: {}", script))?
-//         };
-//         // Find or create a BaseScriptRecord for this script
+        // supported_scripts is expected to be ISO scripts, convert them to OT
+        for ot_script in supported_scripts
+            .iter()
+            .flat_map(|s| iso15924_to_opentype(s))
+        {
+            let default_baseline = if is_cjk_script(&ot_script.to_string()) {
+                Tag::new(b"ideo")
+            } else {
+                Tag::new(b"romn")
+            };
+            // Find a horizontal basescript record for this script, or create one
+            let h_basescript =
+                if let Some(bs) = base.horizontal.iter_mut().find(|bs| bs.script == ot_script) {
+                    bs
+                } else {
+                    base.horizontal.push(BaseScript::new(ot_script));
+                    base.horizontal.last_mut().unwrap()
+                };
+            h_basescript.default_baseline = Some(default_baseline);
+            let hbaselines = &mut h_basescript.baselines;
+            if let Some(icfb) = self.h_icfb {
+                hbaselines.insert(Tag::new(b"icfb"), icfb as i16);
+            }
+            if let Some(icft) = self.h_icft {
+                hbaselines.insert(Tag::new(b"icft"), icft as i16);
+            }
+            if let Some(ideo) = self.h_ideo {
+                hbaselines.insert(Tag::new(b"ideo"), ideo as i16);
+            }
+            if let Some(romn) = self.h_romn {
+                hbaselines.insert(Tag::new(b"romn"), romn as i16);
+            }
+            if !font_is_square {
+                if let Some(idtp) = self.h_idtp {
+                    hbaselines.insert(Tag::new(b"idtp"), idtp as i16);
+                }
+            }
+            // Find a vertical basescript record for this script, or create one
+            let v_basescript =
+                if let Some(bs) = base.vertical.iter_mut().find(|bs| bs.script == ot_script) {
+                    bs
+                } else {
+                    base.vertical.push(BaseScript::new(ot_script));
+                    base.vertical.last_mut().unwrap()
+                };
+            v_basescript.default_baseline = Some(default_baseline);
+            let vbaselines = &mut v_basescript.baselines;
+            if let Some(icfb) = self.v_icfb {
+                vbaselines.insert(Tag::new(b"icfb"), icfb as i16);
+            }
+            if let Some(icft) = self.v_icft {
+                vbaselines.insert(Tag::new(b"icft"), icft as i16);
+            }
+            if let Some(ideo) = self.v_ideo {
+                vbaselines.insert(Tag::new(b"ideo"), ideo as i16);
+            }
+            if let Some(romn) = self.v_romn {
+                vbaselines.insert(Tag::new(b"romn"), romn as i16);
+            }
+            if !font_is_square {
+                if let Some(idtp) = self.v_idtp {
+                    vbaselines.insert(Tag::new(b"idtp"), idtp as i16);
+                }
+            }
+        }
+    }
+}
 
-//         let record = if let Some(i) = base_script_records
-//             .iter()
-//             .position(|b| b.base_script_tag == tag)
-//         {
-//             &mut base_script_records[i]
-//         } else {
-//             base_script_records.push(BaseScriptRecord::new(tag, BaseScript::default()));
-//             base_script_records.last_mut().unwrap()
-//         };
-//         let default_index = if is_cjk_script(script) || script == "DFLT" {
-//             2
-//         } else {
-//             3
-//         };
-//         record.base_script.base_values = Some(BaseValues::new(
-//             default_index,
-//             vec![
-//                 BaseCoord::Format1(BaseCoordFormat1::new(icfb as i16)),
-//                 BaseCoord::Format1(BaseCoordFormat1::new(icft as i16)),
-//                 BaseCoord::Format1(BaseCoordFormat1::new(ideo)),
-//                 BaseCoord::Format1(BaseCoordFormat1::new(0i16)),
-//             ],
-//         ))
-//         .into();
-//         if let (Some(vert_icfb), Some(vert_icft)) = (vert_icfb, vert_icft) {
-//             vertical_script_records.push(BaseScriptRecord::new(
-//                 tag,
-//                 BaseScript::new(
-//                     Some(BaseValues::new(
-//                         default_index,
-//                         vec![
-//                             BaseCoord::Format1(BaseCoordFormat1::new(vert_icfb)),
-//                             BaseCoord::Format1(BaseCoordFormat1::new(vert_icft)),
-//                             BaseCoord::Format1(BaseCoordFormat1::new(0i16)),
-//                             BaseCoord::Format1(BaseCoordFormat1::new(-ideo)),
-//                         ],
-//                     )),
-//                     None,
-//                     vec![],
-//                 ),
-//             ));
-//         }
-//     }
-//     // Not yet implemented
+fn cjk_glyphs(f: &skrifa::FontRef) -> Vec<GlyphId> {
+    let mut cjk_glyphs = f
+        .charmap()
+        .mappings()
+        .filter(|(cp, _gid)| {
+            // We're going to be using this to find the ideographic bounding
+            // box, so we're only interesting in Han/Kanji. In some designs,
+            // kana, enclosed characters, etc. may be taller than the
+            // ideographic bounding box, so we exclude them.
+            (0x4E00..0x9FFF).contains(cp)
+            || (0x3400..0x4DBF).contains(cp) // CJK Unified Ideographs Extension A
+            || (0x20000..0x2A6DF).contains(cp) // CJK Unified Ideographs Extension B
+        })
+        .map(|(_cp, gid)| gid)
+        .collect::<Vec<_>>();
+    if cjk_glyphs.is_empty() {
+        // Maybe just a Korean or Kana font?
+        cjk_glyphs = f
+            .charmap()
+            .mappings()
+            .filter(
+                |(cp, _gid)|
+                // Korean Hangul syllables
+                (0xAC00..=0xD7AF).contains(cp)
+                || // Kana characters
+                (0x3040..=0x30FF).contains(cp)
+                || (0xFF00..=0xFFEF).contains(cp), // Full-width Kana
+            )
+            .map(|(_cp, gid)| gid)
+            .collect();
+    }
+    cjk_glyphs
+}
 
-//     let vertical_axis = if vertical_script_records.is_empty() {
-//         None
-//     } else {
-//         Some(Axis::new(
-//             Some(tags.clone()),
-//             BaseScriptList::new(vertical_script_records),
-//         ))
-//     };
-
-//     Ok((Some(tags), vertical_axis))
-// }
+pub fn compute_bounds(f: &skrifa::FontRef) -> Result<CjkMetrics, AutobaseError> {
+    let upem = f.head()?.units_per_em() as f32;
+    let glyph_metrics = f.glyph_metrics(Size::unscaled(), LocationRef::default());
+    let hmtx = f.hmtx()?;
+    let relevant_glyphs = cjk_glyphs(f);
+    let average_width = relevant_glyphs
+        .iter()
+        .map(|&gid| hmtx.advance(gid).map(|x| x as f32).unwrap_or(upem)) // Promote to f32 to avoid overflow
+        .sum::<f32>()
+        / relevant_glyphs.len() as f32;
+    Ok(CjkMetrics::from_bounds(
+        &relevant_glyphs
+            .iter()
+            .filter_map(|&gid| glyph_metrics.bounds(gid))
+            .collect::<Vec<_>>(),
+        upem,
+        average_width,
+    ))
+}
