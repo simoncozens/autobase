@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use crate::utils::KNOWN_ISO_SCRIPTS;
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Deserialize, Clone)]
 pub struct Override {
     #[serde(default)]
     pub min: Option<i16>,
@@ -12,7 +12,7 @@ pub struct Override {
     pub max: Option<i16>,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct ScriptLanguage {
     pub script: String,
     pub language: Option<String>,
@@ -55,7 +55,7 @@ impl<'de> Deserialize<'de> for ScriptLanguage {
     }
 }
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Deserialize, Clone)]
 pub struct Config {
     pub r#override: HashMap<ScriptLanguage, Override>,
     pub languages: Vec<ScriptLanguage>,

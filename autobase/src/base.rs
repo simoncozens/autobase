@@ -5,8 +5,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use itertools::Itertools;
-use skrifa::Tag;
-use write_fonts::tables::base as write_base;
+use skrifa::{FontRef, Tag};
+use write_fonts::{tables::base as write_base, FontBuilder};
 
 use crate::error::AutobaseError;
 
@@ -39,6 +39,21 @@ impl MinMax {
             lowest: mm.min_coord().transpose()?.map(|c| c.coordinate()),
             lowest_word: "<from font>".to_string(),
         })
+    }
+
+    pub fn merge(&mut self, other: &MinMax) {
+        if let Some(other_high) = other.highest {
+            if self.highest.is_none() || self.highest.unwrap() < other_high {
+                self.highest = Some(other_high);
+                self.highest_word = other.highest_word.clone();
+            }
+        }
+        if let Some(other_low) = other.lowest {
+            if self.lowest.is_none() || self.lowest.unwrap() > other_low {
+                self.lowest = Some(other_low);
+                self.lowest_word = other.lowest_word.clone();
+            }
+        }
     }
 }
 
@@ -131,6 +146,46 @@ impl BaseScript {
             self.script,
             write_base::BaseScript::new(base_values, default_minmax, language_minmax),
         ))
+    }
+
+    pub fn simplify(&mut self, tolerance: u16) {
+        if let Some(default_minmax) = &self.default_minmax {
+            // First, remove entries that are close to the default
+            for value in self.languages.values_mut() {
+                if let (Some(low), Some(def_low)) = (value.lowest, default_minmax.lowest) {
+                    if (low - def_low).unsigned_abs() <= tolerance {
+                        value.lowest = None;
+                    }
+                }
+                if let (Some(high), Some(def_high)) = (value.highest, default_minmax.highest) {
+                    if (high - def_high).unsigned_abs() <= tolerance {
+                        value.highest = None;
+                    }
+                }
+            }
+            // Next remove entries that are now empty
+            self.languages
+                .retain(|_, v| v.lowest.is_some() || v.highest.is_some());
+        }
+    }
+
+    pub fn merge(&self, other: &BaseScript) -> Self {
+        let mut merged = self.clone();
+        if let Some(other_def) = &other.default_minmax {
+            if let Some(merged_def) = &mut merged.default_minmax {
+                merged_def.merge(other_def);
+            } else {
+                merged.default_minmax = Some(other_def.clone());
+            }
+        }
+        for (lang, other_mm) in &other.languages {
+            if let Some(merged_mm) = merged.languages.get_mut(lang) {
+                merged_mm.merge(other_mm);
+            } else {
+                merged.languages.insert(*lang, other_mm.clone());
+            }
+        }
+        merged
     }
 }
 
@@ -336,6 +391,38 @@ impl BaseTable {
         Self {
             horizontal,
             vertical,
+        }
+    }
+
+    /// Add the BASE table to a binary font, returning the new binary data.
+    pub fn add_to_binary(&self, font: &FontRef) -> Result<Vec<u8>, AutobaseError> {
+        let mut new_font = FontBuilder::new();
+        new_font.add_table(&self.to_skrifa()?)?;
+        new_font.copy_missing_tables(font.clone());
+        let binary = new_font.build();
+        Ok(binary)
+    }
+
+    pub fn merge(&mut self, other: &BaseTable) {
+        for (my_axis, their_axis) in [
+            (&mut self.horizontal, &other.horizontal),
+            (&mut self.vertical, &other.vertical),
+        ] {
+            // For each script in other, see if we have it already
+            for script in their_axis.iter() {
+                // Find a matching script in self
+                if let Some(my_script) = my_axis.iter().find(|s| s.script == script.script) {
+                    my_script.merge(script);
+                } else {
+                    my_axis.push(script.clone());
+                }
+            }
+        }
+    }
+
+    pub fn simplify(&mut self, tolerance: u16) {
+        for script in self.horizontal.iter_mut().chain(self.vertical.iter_mut()) {
+            script.simplify(tolerance);
         }
     }
 }

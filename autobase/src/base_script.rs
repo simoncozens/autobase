@@ -54,22 +54,6 @@ impl MinMax {
             lowest_word,
         })
     }
-
-    fn merge(&mut self, other: &MinMax) {
-        if let Some(other_high) = other.highest {
-            if self.highest.is_none() || self.highest.unwrap() < other_high {
-                self.highest = Some(other_high);
-                self.highest_word = other.highest_word.clone();
-            }
-        }
-        if let Some(other_low) = other.lowest {
-            if self.lowest.is_none() || self.lowest.unwrap() > other_low {
-                self.lowest = Some(other_low);
-                self.lowest_word = other.lowest_word.clone();
-            }
-        }
-    }
-
     fn aggregate(minmaxes: &[MinMax]) -> Option<Self> {
         if minmaxes.is_empty() {
             return None;

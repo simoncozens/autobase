@@ -11,4 +11,6 @@ pub enum AutobaseError {
     BaseScriptListNotFound,
     #[error("BASE script record not found for script {script}")]
     BaseScriptNotFound { script: Tag },
+    #[error("Error building binary font: {0}")]
+    FontBuild(#[from] write_fonts::BuilderError),
 }
