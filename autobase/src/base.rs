@@ -321,7 +321,7 @@ impl BaseTable {
             fea.push('\n');
         }
         fea.pop();
-        fea.push_str("}\n");
+        fea.push_str("} BASE;\n");
         fea
     }
 
