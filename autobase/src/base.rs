@@ -22,6 +22,15 @@ pub struct MinMax {
 }
 
 impl MinMax {
+    pub fn new_min_max(low: i16, high: i16) -> Self {
+        Self {
+            lowest: Some(low),
+            highest: Some(high),
+            lowest_word: "<from font>".to_string(),
+            highest_word: "<from font>".to_string(),
+        }
+    }
+
     /// Convert to a Skrifa MinMax representation for writing to a font.
     pub fn to_skrifa(&self) -> write_base::MinMax {
         write_base::MinMax::new(
@@ -54,6 +63,47 @@ impl MinMax {
                 self.lowest_word = other.lowest_word.clone();
             }
         }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.highest.is_none() && self.lowest.is_none()
+    }
+
+    fn unset_highest(&mut self) {
+        self.highest = None;
+        self.highest_word = "<none>".to_string();
+    }
+    fn unset_lowest(&mut self) {
+        self.lowest = None;
+        self.lowest_word = "<none>".to_string();
+    }
+
+    pub fn with_inliers_removed(self, limits: &MinMax) -> MinMax {
+        let mut new = self;
+        if let (Some(high), Some(limit_high)) = (new.highest, limits.highest) {
+            if high < limit_high {
+                new.unset_highest();
+            }
+        }
+        if let (Some(low), Some(limit_low)) = (new.lowest, limits.lowest) {
+            if low > limit_low {
+                new.unset_lowest();
+            }
+        }
+        new
+    }
+
+    pub fn with_nulls_replaced(self, defaults: &MinMax) -> MinMax {
+        let mut new = self;
+        if new.highest.is_none() {
+            new.highest = defaults.highest;
+            new.highest_word = "<default>".to_string();
+        }
+        if new.lowest.is_none() {
+            new.lowest = defaults.lowest;
+            new.lowest_word = "<default>".to_string();
+        }
+        new
     }
 }
 
@@ -303,8 +353,12 @@ impl BaseTable {
                         " {}.MinMax {} dflt {}, {};\n",
                         axis,
                         script_record.script,
-                        mm.lowest.unwrap_or(0),
-                        mm.highest.unwrap_or(0)
+                        mm.lowest
+                            .map(|x| x.to_string())
+                            .unwrap_or_else(|| "NULL".to_string()),
+                        mm.highest
+                            .map(|x| x.to_string())
+                            .unwrap_or_else(|| "NULL".to_string())
                     ));
                     for (lang, coord) in script_record.languages.iter() {
                         fea.push_str(&format!(
@@ -312,8 +366,14 @@ impl BaseTable {
                             axis,
                             script_record.script,
                             lang,
-                            coord.lowest.unwrap_or(0),
-                            coord.highest.unwrap_or(0)
+                            coord
+                                .lowest
+                                .map(|x| x.to_string())
+                                .unwrap_or_else(|| "NULL".to_string()),
+                            coord
+                                .highest
+                                .map(|x| x.to_string())
+                                .unwrap_or_else(|| "NULL".to_string())
                         ));
                     }
                 }

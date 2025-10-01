@@ -1,5 +1,5 @@
 use autobase::{
-    base::BaseTable,
+    base::{BaseTable, MinMax},
     base_script,
     cjk::{self, compute_bounds},
     config, utils,
@@ -28,6 +28,10 @@ struct Args {
     /// Add min-max records for experimental Android multiscript vertical metrics
     #[arg(short = 'm', long = "min-max")]
     min_max: bool,
+
+    /// Use hhea ascent/descent as font default min/max; otherwise use OS/2 sTypoAscender/sTypoDescender
+    #[arg(short = 'u', long = "use-hhea", requires = "min_max")]
+    use_hhea: bool,
 
     /// The number of words from each list to test
     #[arg(short = 'k', long = "words", default_value_t = 1000)]
@@ -133,16 +137,38 @@ fn generate_base_for_font(
                 .push(report);
         }
     }
-    let base_script_records = if args.min_max {
+    let font_minmax = get_font_minmax(font, args.use_hhea);
+    log::info!("Font default min/max: {:?}", font_minmax);
+    let mut base_script_records = if args.min_max {
         reports_by_script
             .iter()
             .flat_map(|(script, reports)| {
-                base_script::base_script_records(script, reports, &config)
+                base_script::base_script_record(script, reports, &config, &font_minmax)
             })
             .collect::<Vec<_>>()
     } else {
         vec![]
     };
+
+    // If we are not writing into the binary (ie. just outputting FEA), we
+    // can't use NULL MinMax values, because FEA doesn't support them. So we
+    // need to replace them with the font's default min/max values.
+    if !args.binary {
+        for script in base_script_records.iter_mut() {
+            if let Some(script_minmax) = &script.default_minmax {
+                if script_minmax.is_empty() {
+                    continue;
+                }
+                // Replace any nulls in the script default min/max
+                script.default_minmax =
+                    Some(script_minmax.clone().with_nulls_replaced(&font_minmax));
+            }
+            for (_baseline, lang) in script.languages.iter_mut() {
+                *lang = lang.clone().with_nulls_replaced(&font_minmax);
+            }
+        }
+    }
+
     let mut base = BaseTable::new(
         base_script_records,
         vec![], // No vertical today
@@ -172,4 +198,15 @@ fn collate_bases(bases: Vec<BaseTable>) -> BaseTable {
     // Simplify the BASE table to remove redundant entries
     first.simplify(5); // 5 units tolerance
     first
+}
+
+fn get_font_minmax(font: &skrifa::FontRef, use_hhea: bool) -> MinMax {
+    let (ascender, descender) = if use_hhea {
+        let hhea = font.hhea().unwrap();
+        (hhea.ascender().to_i16(), hhea.descender().to_i16())
+    } else {
+        let os2 = font.os2().unwrap();
+        (os2.s_typo_ascender(), os2.s_typo_descender())
+    };
+    MinMax::new_min_max(descender, ascender)
 }
