@@ -53,13 +53,13 @@ impl MinMax {
             lowest_word,
         })
     }
-    fn aggregate(minmaxes: &[MinMax]) -> Option<Self> {
+    fn aggregate(minmaxes: &[MinMax], tolerance: Option<u16>) -> Option<Self> {
         if minmaxes.is_empty() {
             return None;
         }
         let mut agg = minmaxes[0].clone();
         for mm in &minmaxes[1..] {
-            agg.merge(mm);
+            agg.merge(mm, tolerance);
         }
         Some(agg)
     }
@@ -124,12 +124,14 @@ pub fn base_script_record(
         let Some(minmax) = MinMax::from_report(report.clone(), config) else {
             continue;
         };
-        let minmax = minmax.with_inliers_removed(font_default);
+        let minmax =
+            minmax.with_inliers_removed(&font_default.extend(config.tolerance.unwrap_or(0)));
         if minmax.is_empty() {
             log::debug!(
-                "  Skipping report for {} ({}) as within font default {:?}",
+                "  Skipping report for {} ({}) as within {} of font default {:?}",
                 report.word_list.name(),
                 report.word_list.language().unwrap_or("<none>"),
+                config.tolerance.unwrap_or(0),
                 font_default
             );
             continue;
@@ -138,7 +140,7 @@ pub fn base_script_record(
             if split_languages.contains(&&lang.to_string()) {
                 lang_specific_minmax
                     .entry(lang.to_string())
-                    .and_modify(|existing| existing.merge(&minmax))
+                    .and_modify(|existing| existing.merge(&minmax, config.tolerance))
                     .or_insert(minmax);
             } else {
                 remaining_langs.push(minmax);
@@ -156,7 +158,10 @@ pub fn base_script_record(
         })
         .collect::<BTreeMap<_, _>>();
 
-    let script_minmax = MinMax::aggregate(&remaining_langs);
+    let mut script_minmax = MinMax::aggregate(&remaining_langs, config.tolerance);
+    if let Some(ref script_mm) = script_minmax {
+        script_minmax = Some(script_mm.clone().with_inliers_removed(font_default));
+    }
     log::info!(" Script {}: {:?}", script, script_minmax);
     if script_minmax.is_none() && language_minmax.is_empty() {
         log::info!(" No BASE table needed for script {}, skipping", script);

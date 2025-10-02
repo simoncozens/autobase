@@ -59,6 +59,7 @@ impl<'de> Deserialize<'de> for ScriptLanguage {
 pub struct Config {
     pub r#override: HashMap<ScriptLanguage, Override>,
     pub languages: Vec<ScriptLanguage>,
+    pub tolerance: Option<u16>,
 }
 
 pub fn load_config(path: &std::path::Path) -> anyhow::Result<Config> {

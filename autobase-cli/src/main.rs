@@ -74,7 +74,7 @@ fn main() -> anyhow::Result<ExitCode> {
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    let base = collate_bases(bases);
+    let base = collate_bases(bases, config.tolerance);
 
     if args.binary {
         for font_path in args.font_path {
@@ -138,7 +138,11 @@ fn generate_base_for_font(
         }
     }
     let font_minmax = get_font_minmax(font, args.use_hhea);
-    log::info!("Font default min/max: {:?}", font_minmax);
+    log::info!(
+        "Font default min {} max {}",
+        font_minmax.lowest.unwrap_or_default(),
+        font_minmax.highest.unwrap_or_default(),
+    );
     let mut base_script_records = if args.min_max {
         reports_by_script
             .iter()
@@ -186,17 +190,17 @@ fn generate_base_for_font(
     Ok(base)
 }
 
-fn collate_bases(bases: Vec<BaseTable>) -> BaseTable {
+fn collate_bases(bases: Vec<BaseTable>, tolerance: Option<u16>) -> BaseTable {
     let base_iter = bases.into_iter();
     let mut first = match base_iter.clone().next() {
         Some(b) => b,
         None => return BaseTable::new(vec![], vec![]),
     };
     for b in base_iter {
-        first.merge(&b);
+        first.merge(&b, tolerance);
     }
     // Simplify the BASE table to remove redundant entries
-    first.simplify(5); // 5 units tolerance
+    first.simplify(tolerance); // 5 units tolerance
     first
 }
 

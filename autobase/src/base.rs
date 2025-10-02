@@ -13,7 +13,7 @@ use crate::error::AutobaseError;
 /// A MinMax represents the highest and lowest points of a set of glyphs, along with
 /// the word that produced each extreme. This is useful for debugging and for
 /// understanding why a particular BASE table was generated.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct MinMax {
     pub highest: Option<i16>,
     pub highest_word: String,
@@ -50,15 +50,16 @@ impl MinMax {
         })
     }
 
-    pub fn merge(&mut self, other: &MinMax) {
+    pub fn merge(&mut self, other: &MinMax, tolerance: Option<u16>) {
+        let tolerance = tolerance.unwrap_or(0);
         if let Some(other_high) = other.highest {
-            if self.highest.is_none() || self.highest.unwrap() < other_high {
+            if self.highest.is_none() || self.highest.unwrap() < other_high - tolerance as i16 {
                 self.highest = Some(other_high);
                 self.highest_word = other.highest_word.clone();
             }
         }
         if let Some(other_low) = other.lowest {
-            if self.lowest.is_none() || self.lowest.unwrap() > other_low {
+            if self.lowest.is_none() || self.lowest.unwrap() > other_low + tolerance as i16 {
                 self.lowest = Some(other_low);
                 self.lowest_word = other.lowest_word.clone();
             }
@@ -78,8 +79,8 @@ impl MinMax {
         self.lowest_word = "<none>".to_string();
     }
 
-    pub fn with_inliers_removed(self, limits: &MinMax) -> MinMax {
-        let mut new = self;
+    pub fn with_inliers_removed(&self, limits: &MinMax) -> MinMax {
+        let mut new = self.clone();
         if let (Some(high), Some(limit_high)) = (new.highest, limits.highest) {
             if high < limit_high {
                 new.unset_highest();
@@ -93,8 +94,8 @@ impl MinMax {
         new
     }
 
-    pub fn with_nulls_replaced(self, defaults: &MinMax) -> MinMax {
-        let mut new = self;
+    pub fn with_nulls_replaced(&self, defaults: &MinMax) -> MinMax {
+        let mut new = self.clone();
         if new.highest.is_none() {
             new.highest = defaults.highest;
             new.highest_word = "<default>".to_string();
@@ -102,6 +103,17 @@ impl MinMax {
         if new.lowest.is_none() {
             new.lowest = defaults.lowest;
             new.lowest_word = "<default>".to_string();
+        }
+        new
+    }
+
+    pub fn extend(&self, extend_by: u16) -> MinMax {
+        let mut new = self.clone();
+        if let Some(high) = self.highest {
+            new.highest = Some(high + extend_by as i16);
+        }
+        if let Some(low) = self.lowest {
+            new.lowest = Some(low - extend_by as i16);
         }
         new
     }
@@ -198,19 +210,21 @@ impl BaseScript {
         ))
     }
 
-    pub fn simplify(&mut self, tolerance: u16) {
-        if let Some(default_minmax) = &self.default_minmax {
-            // First, remove entries that are close to the default
-            for value in self.languages.values_mut() {
-                if let (Some(low), Some(def_low)) = (value.lowest, default_minmax.lowest) {
-                    if (low - def_low).unsigned_abs() <= tolerance {
-                        value.lowest = None;
-                    }
-                }
-                if let (Some(high), Some(def_high)) = (value.highest, default_minmax.highest) {
-                    if (high - def_high).unsigned_abs() <= tolerance {
-                        value.highest = None;
-                    }
+    pub fn simplify(&mut self, tolerance: Option<u16>) {
+        let tolerance = tolerance.unwrap_or(0);
+        if let Some(script_default) = &self.default_minmax {
+            // First, remove entries that are close to the script default
+            for (lang, v) in self.languages.iter_mut() {
+                let pruned = v.with_inliers_removed(&script_default.extend(tolerance));
+                if pruned != *v {
+                    log::info!(
+                        "Not emitting script record {} for {}/{} (within {} of script default)",
+                        v,
+                        self.script,
+                        lang,
+                        tolerance,
+                    );
+                    *v = pruned;
                 }
             }
             // Next remove entries that are now empty
@@ -219,18 +233,18 @@ impl BaseScript {
         }
     }
 
-    pub fn merge(&self, other: &BaseScript) -> Self {
+    pub fn merge(&self, other: &BaseScript, tolerance: Option<u16>) -> Self {
         let mut merged = self.clone();
         if let Some(other_def) = &other.default_minmax {
             if let Some(merged_def) = &mut merged.default_minmax {
-                merged_def.merge(other_def);
+                merged_def.merge(other_def, tolerance);
             } else {
                 merged.default_minmax = Some(other_def.clone());
             }
         }
         for (lang, other_mm) in &other.languages {
             if let Some(merged_mm) = merged.languages.get_mut(lang) {
-                merged_mm.merge(other_mm);
+                merged_mm.merge(other_mm, tolerance);
             } else {
                 merged.languages.insert(*lang, other_mm.clone());
             }
@@ -463,7 +477,7 @@ impl BaseTable {
         Ok(binary)
     }
 
-    pub fn merge(&mut self, other: &BaseTable) {
+    pub fn merge(&mut self, other: &BaseTable, tolerance: Option<u16>) {
         for (my_axis, their_axis) in [
             (&mut self.horizontal, &other.horizontal),
             (&mut self.vertical, &other.vertical),
@@ -472,7 +486,7 @@ impl BaseTable {
             for script in their_axis.iter() {
                 // Find a matching script in self
                 if let Some(my_script) = my_axis.iter().find(|s| s.script == script.script) {
-                    my_script.merge(script);
+                    my_script.merge(script, tolerance);
                 } else {
                     my_axis.push(script.clone());
                 }
@@ -480,7 +494,7 @@ impl BaseTable {
         }
     }
 
-    pub fn simplify(&mut self, tolerance: u16) {
+    pub fn simplify(&mut self, tolerance: Option<u16>) {
         for script in self.horizontal.iter_mut().chain(self.vertical.iter_mut()) {
             script.simplify(tolerance);
         }
