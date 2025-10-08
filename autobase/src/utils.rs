@@ -222,13 +222,18 @@ fn unicode_to_iso(script: &str) -> Option<&'static str> {
 
 pub fn iso15924_to_opentype(script: &str) -> Option<Tag> {
     match script {
-        "Deva" => Some(Tag::new(b"dev2")),
+        // Special cases: https://github.com/fonttools/fonttools/blob/3c1822544d608f87c41fc8fb9ba41ea129257aa8/Lib/fontTools/unicodedata/OTTags.py#L35-L46
+        // Relevant specification: https://learn.microsoft.com/en-us/typography/opentype/spec/scripttags
         "Beng" => Some(Tag::new(b"bng2")),
-        "Gujr" => Some(Tag::new(b"guj2")),
-        "Gurm" => Some(Tag::new(b"gur2")),
-        "Knda" => Some(Tag::new(b"kan2")),
-        "Taml" => Some(Tag::new(b"tam2")),
+        "Deva" => Some(Tag::new(b"dev2")),
+        "Gujr" => Some(Tag::new(b"gjr2")),
+        "Guru" => Some(Tag::new(b"gur2")),
+        "Knda" => Some(Tag::new(b"knd2")),
+        "Mlym" => Some(Tag::new(b"mlm2")),
+        "Orya" => Some(Tag::new(b"ory2")),
+        "Taml" => Some(Tag::new(b"tml2")),
         "Telu" => Some(Tag::new(b"tel2")),
+        "Mymr" => Some(Tag::new(b"mym2")),
         _ => Tag::new_checked(script.to_lowercase().as_bytes()).ok(),
     }
 }
