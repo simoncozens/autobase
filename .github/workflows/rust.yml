@@ -12,8 +12,8 @@ env:
   CARGO_TERM_COLOR: always
   GH_TOKEN: ${{ github.token }}
   PROJECT_NAME: autobase
-  CARGO_PUBLISH_ARGS: "-p autobase"
-  CRATE_PATTERN: "autobase"
+  CARGO_PUBLISH_ARGS: "-p autobase -p autobase-cli"
+  CRATE_PATTERN: "autobase|autobase-cli"
   BINARIES: "autobase,dump-base"
 
 jobs:
@@ -65,6 +65,11 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v3
+      - if: contains(github.ref, 'refs/tags/v')
+        run:
+          python3 scripts/check_versions.py
+        env:
+          CRATE_PATTERN: ${{ env.CRATE_PATTERN }}
       - if: contains(github.ref, 'refs/tags/v')
         name: Check for release
         id: create_release
