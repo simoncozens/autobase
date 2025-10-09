@@ -222,8 +222,16 @@ fn unicode_to_iso(script: &str) -> Option<&'static str> {
 
 pub fn iso15924_to_opentype(script: &str) -> Option<Tag> {
     match script {
-        // Special cases: https://github.com/fonttools/fonttools/blob/3c1822544d608f87c41fc8fb9ba41ea129257aa8/Lib/fontTools/unicodedata/OTTags.py#L35-L46
+        // Special cases: https://github.com/fonttools/fonttools/blob/3c1822544d608f87c41fc8fb9ba41ea129257aa8/Lib/fontTools/unicodedata/OTTags.py
         // Relevant specification: https://learn.microsoft.com/en-us/typography/opentype/spec/scripttags
+        // SCRIPT_EXCEPTIONS
+        "Hira" => Some(Tag::new(b"kana")),
+        "Hrkt" => Some(Tag::new(b"kana")),
+        "Laoo" => Some(Tag::new(b"lao ")),
+        "Yiii" => Some(Tag::new(b"yi  ")),
+        "Nkoo" => Some(Tag::new(b"nko ")),
+        "Vaii" => Some(Tag::new(b"vai ")),
+        // NEW_SCRIPT_TAGS
         "Beng" => Some(Tag::new(b"bng2")),
         "Deva" => Some(Tag::new(b"dev2")),
         "Gujr" => Some(Tag::new(b"gjr2")),
@@ -234,6 +242,7 @@ pub fn iso15924_to_opentype(script: &str) -> Option<Tag> {
         "Taml" => Some(Tag::new(b"tml2")),
         "Telu" => Some(Tag::new(b"tel2")),
         "Mymr" => Some(Tag::new(b"mym2")),
+        // General case
         _ => Tag::new_checked(script.to_lowercase().as_bytes()).ok(),
     }
 }
