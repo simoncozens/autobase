@@ -23,6 +23,13 @@ env_logger = "0.11.8"
 log = "0.4.25"
 skrifa = "=0.37.0"
 write-fonts = "=0.43.0"
-fontheight = "=0.1.7"
+fontheight.workspace = true
 rayon = "1.10"
-static-lang-word-lists = "0.3.0"
+
+[dependencies.static-lang-word-lists]
+version = "0.4.1"
+default-features = false
+features = [
+    "aosp",
+    "libreoffice",
+]
