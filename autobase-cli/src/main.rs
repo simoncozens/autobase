@@ -113,8 +113,8 @@ fn generate_base_for_font(
         "Supported scripts: {}",
         supported.iter().cloned().collect::<Vec<_>>().join(", ")
     );
-    let wordlists = static_lang_word_lists::LOOKUP_TABLE
-        .values()
+    let wordlists = static_lang_word_lists::ALL_WORD_LISTS
+        .iter()
         .filter(|word_list| {
             // Filter out word lists that don't have a script in the font
             word_list

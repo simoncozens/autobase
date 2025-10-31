@@ -4,3 +4,6 @@ members = [
     "autobase",
     "autobase-cli",
 ]
+
+[workspace.dependencies]
+fontheight = "=0.1.8"
