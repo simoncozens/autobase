@@ -1,6 +1,6 @@
 [package]
 name = "autobase-cli"
-version = "0.2.1"
+version = "0.3.0"
 license = "Apache-2.0"
 edition = "2021"
 description = "Automatically generate BASE tables for OpenType fonts"
@@ -29,7 +29,4 @@ rayon = "1.10"
 [dependencies.static-lang-word-lists]
 version = "0.4.1"
 default-features = false
-features = [
-    "aosp",
-    "libreoffice",
-]
+features = ["aosp", "libreoffice"]
