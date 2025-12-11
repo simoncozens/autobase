@@ -7,3 +7,7 @@ members = [
 
 [workspace.dependencies]
 fontheight = "=0.1.8"
+
+# FIXME: remove this after SLWL's update has been released
+[patch.crates-io]
+static-lang-word-lists = { git = "https://github.com/googlefonts/fontheight", branch = "slwl-word-list-editing-creation" }

@@ -121,21 +121,18 @@ fn generate_base_for_font(
                 .script()
                 .map(|x| supported.contains(x))
                 .unwrap_or(false)
-        });
-    // We want to filter out any words which are in the exclusions. But:
-    // - We can't clone or modify a wordlist
-    // - We can create a wordlist from an iterator but we then lose the metadata
-    // - We can't create new metadata objects or change the metadata on an existing wordlist
-    // - We can't add a filter function into par_check after par_iter because the function can't go across threads
-    // - We can't add a filter function into par_check before par_iter because we need Wordlist.par_iter to produce a ParWordListIter
-    // So there's not much we can do except get a large number of exemplars and hope for the best.
+        })
+        .map(|word_list| {
+            // Note: this will be quite slow if the list of exclusions is large
+            word_list.filter(|word| config.exclusions.iter().any(|exclusion| exclusion == word))
+        })
+        .collect::<Vec<_>>();
     let reports = wordlists
+        .iter()
         // Cartesian product relevant word lists with instances
         .flat_map(|word_list| instances.iter().zip(iter::repeat(word_list)))
         .par_bridge()
-        .map(|(reporter, word_list)| {
-            reporter.par_check(word_list, Some(args.words_per_list), 10000)
-        })
+        .map(|(reporter, word_list)| reporter.par_check(word_list, Some(args.words_per_list), 1))
         .collect::<Result<Vec<_>, _>>()?;
     let mut reports_by_script: BTreeMap<String, Vec<Report>> = BTreeMap::new();
     for report in reports.into_iter() {

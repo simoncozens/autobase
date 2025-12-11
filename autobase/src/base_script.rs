@@ -23,33 +23,13 @@ impl MinMax {
         let (mut highest, mut highest_word) = if r.exemplars.is_empty() {
             (None, "<none>".to_string())
         } else {
-            let h = r
-                .exemplars
-                .highest()
-                .iter()
-                .find(|w| {
-                    !config
-                        .exclusions
-                        .iter()
-                        .any(|excluded_pattern| w.word.contains(excluded_pattern))
-                })
-                .unwrap();
+            let h = r.exemplars.highest().first().unwrap();
             (Some(h.extremes.highest() as i16), h.word.to_string())
         };
         let (mut lowest, mut lowest_word) = if r.exemplars.is_empty() {
             (None, "<none>".to_string())
         } else {
-            let l = r
-                .exemplars
-                .lowest()
-                .iter()
-                .find(|w| {
-                    !config
-                        .exclusions
-                        .iter()
-                        .any(|excluded_pattern| w.word.contains(excluded_pattern))
-                })
-                .unwrap();
+            let l = r.exemplars.lowest().first().unwrap();
             (Some(l.extremes.lowest() as i16), l.word.to_string())
         };
         if let Some(ov) = override_ {

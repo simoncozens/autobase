@@ -802,8 +802,7 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 [[package]]
 name = "static-lang-word-lists"
 version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5722e7b37a53bbc281b636696c3ef2c070f04259a4d313cf616c3715dadb6261"
+source = "git+https://github.com/googlefonts/fontheight?branch=slwl-word-list-editing-creation#03572edec09b0d945a1ad2d4d778fb6d9ac9afa2"
 dependencies = [
  "brotli",
  "brotli-decompressor",
